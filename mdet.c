@@ -287,22 +287,31 @@ int mdet(int argc, char** argv)
                 U[i] = umed;
         }
 
-        // Read coadd mask.
-        int nxm, nym;
-        istat = headpar(&nxm, &nym, cmasklist[iband], &crval1m, &crval2m, &cdelt1m, &cdelt2m, &rotm, &crpix1m, &crpix2m);
-        if (istat > 1)
-            return istat;
-        if (nxm != nxc || nym != nyc)
+        if (strlen(cmasklist[iband]))
         {
-            printf("MDET: Coadd mask incompatible with image\n");
-            return 4;
+            // Read coadd mask.
+            int nxm, nym;
+            istat = headpar(&nxm, &nym, cmasklist[iband], &crval1m, &crval2m, &cdelt1m, &cdelt2m, &rotm, &crpix1m, &crpix2m);
+            if (istat > 1)
+                return istat;
+            if (nxm != nxc || nym != nyc)
+            {
+                printf("MDET: Coadd mask incompatible with image\n");
+                return 4;
+            }
+            istat = mreadimage(&nxm, &nym, Larray, cmasklist[iband], &crval1m, &crval2m, &cdelt1m, &cdelt2m, &rotm, &crpix1m, &crpix2m);
+            if (istat > 1)
+                return istat;
+            shuffle(Larray, nxc, nyc, Array);
+            for (int i = nx * ny; --i >= 0; )
+                Msk[i] = lroundf(Array[i]);
         }
-        istat = mreadimage(&nxm, &nym, Larray, cmasklist[iband], &crval1m, &crval2m, &cdelt1m, &cdelt2m, &rotm, &crpix1m, &crpix2m);
-        if (istat > 1)
-            return istat;
-        shuffle(Larray, nxc, nyc, Array);
-        for (int i = nx * ny; --i >= 0; )
-            Msk[i] = lroundf(Array[i]);
+        else
+        {
+            printf("MDET: WARNING: No coadd mask specified for band %i. Assuming all zeroes\n", iband + 1);
+
+            memset(Msk, 0, nx * ny * sizeof(int));
+        }
 
         // Calculate slowly-varying background and write it out.
         int width = 2 * lroundf(backwindow / 2.f) + 1;
@@ -320,7 +329,7 @@ int mdet(int argc, char** argv)
         }
         int iskip = 8;
         float bthresh = 100;
-        float fwhmpix = fwhm[bandlist[iband]] / (3600. * pixel);
+        float fwhmpix = fwhm[bandlist[iband]] / (3600.f * pixel);
         int iblank = min(lroundf(25 * fwhmpix), (int)(width / 2.0f));
 
         if (multiframe)
